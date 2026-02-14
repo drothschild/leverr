@@ -59,6 +59,44 @@ describe("Type Inference", () => {
     });
   });
 
+  describe("data structures", () => {
+    it("infers list type", () => {
+      expect(typeOf("[1, 2, 3]")).toBe("List(Int)");
+    });
+
+    it("rejects heterogeneous lists", () => {
+      expect(() => typeOf('[1, "two"]')).toThrow();
+    });
+
+    it("infers tuple type", () => {
+      expect(typeOf('(1, "hello")')).toBe("(Int, String)");
+    });
+
+    it("infers record type", () => {
+      const t = typeOf('{ name: "Alice", age: 30 }');
+      expect(t).toContain("name: String");
+      expect(t).toContain("age: Int");
+    });
+
+    it("infers field access type", () => {
+      expect(typeOf('let r = { name: "Alice" } in r.name')).toBe("String");
+    });
+
+    it("infers tagged value type", () => {
+      expect(typeOf("Ok(42)")).toBe("Result(Int, String)");
+    });
+  });
+
+  describe("pipes", () => {
+    it("infers pipe type", () => {
+      expect(typeOf("let f = fn(x) -> x + 1 in 5 |> f")).toBe("Int");
+    });
+
+    it("rejects type mismatch in pipe", () => {
+      expect(() => typeOf('let f = fn(x) -> x + 1 in "hi" |> f')).toThrow();
+    });
+  });
+
   describe("type errors", () => {
     it("rejects Int + String", () => {
       expect(() => typeOf('5 + "hello"')).toThrow();
