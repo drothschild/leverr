@@ -232,15 +232,20 @@ class Parser {
 
   parseFn(): Expr {
     const fnToken = this.expect(TokenKind.Fn);
-    this.expect(TokenKind.LParen);
     const params: string[] = [];
-    if (!this.at(TokenKind.RParen)) {
-      params.push(this.expect(TokenKind.Ident).lexeme);
-      while (this.eat(TokenKind.Comma)) {
+    if (this.eat(TokenKind.LParen)) {
+      // fn(a, b) -> ...
+      if (!this.at(TokenKind.RParen)) {
         params.push(this.expect(TokenKind.Ident).lexeme);
+        while (this.eat(TokenKind.Comma)) {
+          params.push(this.expect(TokenKind.Ident).lexeme);
+        }
       }
+      this.expect(TokenKind.RParen);
+    } else {
+      // fn x -> ... (shorthand single param)
+      params.push(this.expect(TokenKind.Ident).lexeme);
     }
-    this.expect(TokenKind.RParen);
     this.expect(TokenKind.Arrow);
     const body = this.parseExpr(0);
 

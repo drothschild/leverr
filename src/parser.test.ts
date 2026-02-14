@@ -320,4 +320,50 @@ describe("Parser", () => {
       });
     });
   });
+
+  describe("complete programs", () => {
+    it("parses a pipeline with error handling", () => {
+      const ast = parseExpr(`
+        let process = fn(input) ->
+          input
+          |> parse_int?
+          |> fn n -> n * 2
+          |> catch e -> 0
+        in process("42")
+      `);
+      expect(ast.kind).toBe("Let");
+    });
+
+    it("parses a match on tagged unions", () => {
+      const ast = parseExpr(`
+        let area = fn(s) -> match s {
+          Circle(r) -> 3.14 * r * r,
+          Rect(w, h) -> w * h
+        }
+        in area(Circle(5.0))
+      `);
+      expect(ast.kind).toBe("Let");
+    });
+
+    it("parses nested function calls with partial application", () => {
+      const ast = parseExpr(`
+        let result = [1, 2, 3, 4, 5]
+          |> filter(fn(x) -> x > 2)
+          |> map(fn(x) -> x * 10)
+        in result
+      `);
+      expect(ast.kind).toBe("Let");
+    });
+
+    it("parses record operations", () => {
+      const ast = parseExpr(`
+        let user = { name: "Alice", age: 30 }
+        in user.name
+      `);
+      expect(ast).toMatchObject({
+        kind: "Let",
+        body: { kind: "FieldAccess", field: "name" },
+      });
+    });
+  });
 });
