@@ -203,4 +203,56 @@ describe("Parser", () => {
       });
     });
   });
+
+  describe("match expressions", () => {
+    it("parses match on literals", () => {
+      const ast = parseExpr("match x { 1 -> true, 2 -> false }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        subject: { kind: "Ident", name: "x" },
+        cases: [
+          { pattern: { kind: "IntPat", value: 1 }, body: { kind: "BoolLit", value: true } },
+          { pattern: { kind: "IntPat", value: 2 }, body: { kind: "BoolLit", value: false } },
+        ],
+      });
+    });
+
+    it("parses match with wildcard", () => {
+      const ast = parseExpr("match x { 1 -> true, _ -> false }");
+      expect(ast.kind).toBe("Match");
+      if (ast.kind === "Match") {
+        expect(ast.cases[1].pattern.kind).toBe("WildcardPat");
+      }
+    });
+
+    it("parses match with tag patterns", () => {
+      const ast = parseExpr("match s { Circle(r) -> r, Rect(w, h) -> w }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        cases: [
+          { pattern: { kind: "TagPat", tag: "Circle", args: [{ kind: "IdentPat", name: "r" }] } },
+          { pattern: { kind: "TagPat", tag: "Rect", args: [{ kind: "IdentPat", name: "w" }, { kind: "IdentPat", name: "h" }] } },
+        ],
+      });
+    });
+
+    it("parses match with identifier patterns (binding)", () => {
+      const ast = parseExpr("match x { n -> n + 1 }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        cases: [{ pattern: { kind: "IdentPat", name: "n" } }],
+      });
+    });
+
+    it("parses match with boolean patterns", () => {
+      const ast = parseExpr("match b { true -> 1, false -> 0 }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        cases: [
+          { pattern: { kind: "BoolPat", value: true } },
+          { pattern: { kind: "BoolPat", value: false } },
+        ],
+      });
+    });
+  });
 });

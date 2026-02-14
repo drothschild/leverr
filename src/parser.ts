@@ -105,7 +105,11 @@ class Parser {
       case TokenKind.Fn: {
         return this.parseFn();
       }
-      // List literal (minimal for pipe tests, extended in Task 2.6)
+      // Match expression
+      case TokenKind.Match: {
+        return this.parseMatch();
+      }
+      // List literal
       case TokenKind.LBracket: {
         const lbracket = this.advance();
         const elements: Expr[] = [];
@@ -227,6 +231,86 @@ class Parser {
       };
     }
     return result;
+  }
+
+  parseMatch(): Expr {
+    const matchToken = this.expect(TokenKind.Match);
+    const subject = this.parseExpr(0);
+    this.expect(TokenKind.LBrace);
+    const cases: { pattern: import("./ast").Pattern; body: Expr }[] = [];
+    if (!this.at(TokenKind.RBrace)) {
+      cases.push(this.parseMatchCase());
+      while (this.eat(TokenKind.Comma)) {
+        if (this.at(TokenKind.RBrace)) break; // trailing comma
+        cases.push(this.parseMatchCase());
+      }
+    }
+    const rbrace = this.expect(TokenKind.RBrace);
+    return {
+      kind: "Match",
+      subject,
+      cases,
+      span: { start: matchToken.span.start, end: rbrace.span.end },
+    };
+  }
+
+  parseMatchCase(): { pattern: import("./ast").Pattern; body: Expr } {
+    const pattern = this.parsePattern();
+    this.expect(TokenKind.Arrow);
+    const body = this.parseExpr(0);
+    return { pattern, body };
+  }
+
+  parsePattern(): import("./ast").Pattern {
+    const token = this.peek();
+
+    switch (token.kind) {
+      case TokenKind.Int: {
+        this.advance();
+        return { kind: "IntPat", value: parseInt(token.lexeme, 10) };
+      }
+      case TokenKind.Float: {
+        this.advance();
+        return { kind: "FloatPat", value: parseFloat(token.lexeme) };
+      }
+      case TokenKind.String: {
+        this.advance();
+        return { kind: "StringPat", value: token.lexeme.slice(1, -1) };
+      }
+      case TokenKind.True: {
+        this.advance();
+        return { kind: "BoolPat", value: true };
+      }
+      case TokenKind.False: {
+        this.advance();
+        return { kind: "BoolPat", value: false };
+      }
+      case TokenKind.Underscore: {
+        this.advance();
+        return { kind: "WildcardPat" };
+      }
+      case TokenKind.UpperIdent: {
+        this.advance();
+        const tag = token.lexeme;
+        const args: import("./ast").Pattern[] = [];
+        if (this.eat(TokenKind.LParen)) {
+          if (!this.at(TokenKind.RParen)) {
+            args.push(this.parsePattern());
+            while (this.eat(TokenKind.Comma)) {
+              args.push(this.parsePattern());
+            }
+          }
+          this.expect(TokenKind.RParen);
+        }
+        return { kind: "TagPat", tag, args };
+      }
+      case TokenKind.Ident: {
+        this.advance();
+        return { kind: "IdentPat", name: token.lexeme };
+      }
+      default:
+        throw new Error(`Unexpected pattern token ${token.kind} at line ${token.span.start.line}, col ${token.span.start.col}`);
+    }
   }
 
   led(left: Expr, bp: [number, number]): Expr {
