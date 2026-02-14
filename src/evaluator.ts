@@ -31,8 +31,115 @@ export function evaluate(expr: Expr, env: Map<string, Value> = new Map()): Value
       return evalUnaryOp(expr.op, operand);
     }
 
+    case "Let": {
+      const value = evaluate(expr.value, env);
+      const newEnv = new Map(env);
+      if (expr.rec && value.kind === "Closure") {
+        // For recursive bindings, the closure's env must include itself
+        const recEnv = new Map(value.env);
+        recEnv.set(expr.name, value);
+        value.env = recEnv;
+      }
+      newEnv.set(expr.name, value);
+      return evaluate(expr.body, newEnv);
+    }
+
+    case "Fn":
+      return { kind: "Closure", param: expr.param, body: expr.body, env: new Map(env) };
+
+    case "Call": {
+      const fn = evaluate(expr.fn, env);
+      const arg = evaluate(expr.arg, env);
+      return applyFn(fn, arg);
+    }
+
+    case "Match": {
+      const subject = evaluate(expr.subject, env);
+      for (const c of expr.cases) {
+        const bindings = matchPattern(c.pattern, subject);
+        if (bindings !== null) {
+          const matchEnv = new Map(env);
+          for (const [k, v] of bindings) matchEnv.set(k, v);
+          return evaluate(c.body, matchEnv);
+        }
+      }
+      throw new Error("No matching pattern");
+    }
+
+    case "If": {
+      const cond = evaluate(expr.cond, env);
+      if (cond.kind !== "Bool") throw new Error("If condition must be Bool");
+      return cond.value ? evaluate(expr.then, env) : evaluate(expr.else_, env);
+    }
+
     default:
       throw new Error(`Cannot evaluate ${expr.kind} yet`);
+  }
+}
+
+export function applyFn(fn: Value, arg: Value): Value {
+  if (fn.kind === "Closure") {
+    const newEnv = new Map(fn.env);
+    newEnv.set(fn.param, arg);
+    return evaluate(fn.body, newEnv);
+  }
+  if (fn.kind === "BuiltinFn") {
+    const applied = [...fn.applied, arg];
+    if (applied.length >= fn.arity) {
+      return fn.fn(applied);
+    }
+    return { kind: "BuiltinFn", name: fn.name, arity: fn.arity, applied, fn: fn.fn };
+  }
+  throw new Error(`Cannot call ${fn.kind}`);
+}
+
+function matchPattern(pattern: import("./ast").Pattern, value: Value): Map<string, Value> | null {
+  switch (pattern.kind) {
+    case "IntPat":
+      return value.kind === "Int" && value.value === pattern.value ? new Map() : null;
+    case "FloatPat":
+      return value.kind === "Float" && value.value === pattern.value ? new Map() : null;
+    case "StringPat":
+      return value.kind === "String" && value.value === pattern.value ? new Map() : null;
+    case "BoolPat":
+      return value.kind === "Bool" && value.value === pattern.value ? new Map() : null;
+    case "WildcardPat":
+      return new Map();
+    case "IdentPat":
+      return new Map([[pattern.name, value]]);
+    case "TagPat": {
+      if (value.kind !== "Tag" || value.tag !== pattern.tag) return null;
+      if (value.args.length !== pattern.args.length) return null;
+      const bindings = new Map<string, Value>();
+      for (let i = 0; i < pattern.args.length; i++) {
+        const sub = matchPattern(pattern.args[i], value.args[i]);
+        if (sub === null) return null;
+        for (const [k, v] of sub) bindings.set(k, v);
+      }
+      return bindings;
+    }
+    case "TuplePat": {
+      if (value.kind !== "Tuple" || value.elements.length !== pattern.elements.length) return null;
+      const bindings = new Map<string, Value>();
+      for (let i = 0; i < pattern.elements.length; i++) {
+        const sub = matchPattern(pattern.elements[i], value.elements[i]);
+        if (sub === null) return null;
+        for (const [k, v] of sub) bindings.set(k, v);
+      }
+      return bindings;
+    }
+    case "RecordPat": {
+      if (value.kind !== "Record") return null;
+      const bindings = new Map<string, Value>();
+      for (const field of pattern.fields) {
+        const fieldVal = value.fields.get(field.name);
+        if (fieldVal === undefined) return null;
+        const sub = matchPattern(field.pattern, fieldVal);
+        if (sub === null) return null;
+        for (const [k, v] of sub) bindings.set(k, v);
+      }
+      return bindings;
+    }
   }
 }
 
