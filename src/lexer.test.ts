@@ -109,4 +109,48 @@ describe("Lexer", () => {
       expect(kinds("  42   5  ")).toEqual([TokenKind.Int, TokenKind.Int, TokenKind.EOF]);
     });
   });
+
+  describe("source spans", () => {
+    it("tracks token positions", () => {
+      const tokens = lex("let x = 42");
+      const let_ = tokens[0];
+      expect(let_.span.start).toEqual({ line: 1, col: 1, offset: 0 });
+      expect(let_.span.end).toEqual({ line: 1, col: 4, offset: 3 });
+
+      const x = tokens[1];
+      expect(x.span.start).toEqual({ line: 1, col: 5, offset: 4 });
+
+      const num = tokens[3];
+      expect(num.span.start).toEqual({ line: 1, col: 9, offset: 8 });
+      expect(num.span.end).toEqual({ line: 1, col: 11, offset: 10 });
+    });
+
+    it("tracks positions across lines", () => {
+      const tokens = lex("let x = 1\nlet y = 2");
+      const y = tokens.find((t) => t.lexeme === "y")!;
+      expect(y.span.start.line).toBe(2);
+      expect(y.span.start.col).toBe(5);
+    });
+  });
+
+  describe("lexer errors", () => {
+    it("reports unexpected characters with position", () => {
+      expect(() => lex("let x = @")).toThrow();
+      try {
+        lex("let x = @");
+      } catch (e: any) {
+        expect(e.message).toContain("line 1");
+        expect(e.message).toContain("col 9");
+      }
+    });
+
+    it("reports unterminated strings", () => {
+      expect(() => lex('"hello')).toThrow();
+      try {
+        lex('"hello');
+      } catch (e: any) {
+        expect(e.message).toContain("unterminated string");
+      }
+    });
+  });
 });
