@@ -84,7 +84,20 @@ class Parser {
       }
       case TokenKind.Ident: {
         this.advance();
-        return { kind: "Ident", name: token.lexeme, span: token.span };
+        let expr: Expr = { kind: "Ident", name: token.lexeme, span: token.span };
+        // Handle function call: ident followed by (
+        while (this.at(TokenKind.LParen)) {
+          expr = this.parseCallArgs(expr);
+        }
+        return expr;
+      }
+      // Let binding
+      case TokenKind.Let: {
+        return this.parseLet();
+      }
+      // Function literal
+      case TokenKind.Fn: {
+        return this.parseFn();
       }
       // Unary operators
       case TokenKind.Bang: {
@@ -107,6 +120,80 @@ class Parser {
       default:
         throw new Error(`Unexpected token ${token.kind} ("${token.lexeme}") at line ${token.span.start.line}, col ${token.span.start.col}`);
     }
+  }
+
+  parseLet(): Expr {
+    const letToken = this.expect(TokenKind.Let);
+    const rec = !!this.eat(TokenKind.Rec);
+    const nameToken = this.expect(TokenKind.Ident);
+    this.expect(TokenKind.Eq);
+    const value = this.parseExpr(0);
+    this.expect(TokenKind.In);
+    const body = this.parseExpr(0);
+    return {
+      kind: "Let",
+      name: nameToken.lexeme,
+      value,
+      body,
+      rec,
+      span: { start: letToken.span.start, end: body.span.end },
+    };
+  }
+
+  parseFn(): Expr {
+    const fnToken = this.expect(TokenKind.Fn);
+    this.expect(TokenKind.LParen);
+    const params: string[] = [];
+    if (!this.at(TokenKind.RParen)) {
+      params.push(this.expect(TokenKind.Ident).lexeme);
+      while (this.eat(TokenKind.Comma)) {
+        params.push(this.expect(TokenKind.Ident).lexeme);
+      }
+    }
+    this.expect(TokenKind.RParen);
+    this.expect(TokenKind.Arrow);
+    const body = this.parseExpr(0);
+
+    // Desugar multi-param into nested Fn nodes (right to left)
+    let result: Expr = body;
+    for (let i = params.length - 1; i >= 1; i--) {
+      result = {
+        kind: "Fn",
+        param: params[i],
+        body: result,
+        span: { start: fnToken.span.start, end: body.span.end },
+      };
+    }
+    return {
+      kind: "Fn",
+      param: params[0] || "_",
+      body: result,
+      span: { start: fnToken.span.start, end: body.span.end },
+    };
+  }
+
+  parseCallArgs(fn: Expr): Expr {
+    this.expect(TokenKind.LParen);
+    const args: Expr[] = [];
+    if (!this.at(TokenKind.RParen)) {
+      args.push(this.parseExpr(0));
+      while (this.eat(TokenKind.Comma)) {
+        args.push(this.parseExpr(0));
+      }
+    }
+    const rparen = this.expect(TokenKind.RParen);
+
+    // Desugar multi-arg call into nested Call nodes
+    let result: Expr = fn;
+    for (const arg of args) {
+      result = {
+        kind: "Call",
+        fn: result,
+        arg,
+        span: { start: fn.span.start, end: rparen.span.end },
+      };
+    }
+    return result;
   }
 
   led(left: Expr, bp: [number, number]): Expr {
