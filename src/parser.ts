@@ -247,7 +247,9 @@ class Parser {
       params.push(this.expect(TokenKind.Ident).lexeme);
     }
     this.expect(TokenKind.Arrow);
-    const body = this.parseExpr(0);
+    // Stop fn body before pipe operator so pipes stay at the outer level
+    // |> has left bp 5, so using minBp 6 stops before consuming pipes
+    const body = this.parseExpr(6);
 
     // Desugar multi-param into nested Fn nodes (right to left)
     let result: Expr = body;

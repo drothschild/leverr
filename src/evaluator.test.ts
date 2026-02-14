@@ -110,6 +110,45 @@ describe("Evaluator", () => {
     });
   });
 
+  describe("error handling", () => {
+    it("? unwraps Ok", () => {
+      expect(runPrint("let x = Ok(42) in x?")).toBe("42");
+    });
+
+    it("? short-circuits on Err", () => {
+      const result = run('let x = Err("bad") in x?');
+      expect(result).toMatchObject({ kind: "Tag", tag: "Err" });
+    });
+
+    it("catch recovers from Err", () => {
+      expect(runPrint('let x = Err("bad") in x |> catch e -> 0')).toBe("0");
+    });
+
+    it("catch passes through Ok", () => {
+      expect(runPrint("let x = Ok(42) in x |> catch e -> 0")).toBe("42");
+    });
+
+    it("pipeline with ? and catch", () => {
+      expect(runPrint(`
+        let parse = fn(s) -> match s {
+          "42" -> Ok(42),
+          _ -> Err("bad")
+        }
+        in "42" |> parse? |> fn n -> n * 2 |> catch e -> 0
+      `)).toBe("84");
+    });
+
+    it("pipeline with ? short-circuiting", () => {
+      expect(runPrint(`
+        let parse = fn(s) -> match s {
+          "42" -> Ok(42),
+          _ -> Err("bad")
+        }
+        in "bad" |> parse? |> fn n -> n * 2 |> catch e -> 0
+      `)).toBe("0");
+    });
+  });
+
   describe("data structures", () => {
     it("evaluates lists", () => {
       expect(runPrint("[1, 2, 3]")).toBe("[1, 2, 3]");

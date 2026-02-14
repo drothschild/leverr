@@ -1,7 +1,20 @@
 import { Expr } from "./ast";
 import { Value } from "./values";
 
+class EarlyReturn {
+  constructor(public value: Value) {}
+}
+
 export function evaluate(expr: Expr, env: Map<string, Value> = new Map()): Value {
+  try {
+    return evalExpr(expr, env);
+  } catch (e) {
+    if (e instanceof EarlyReturn) return e.value;
+    throw e;
+  }
+}
+
+function evalExpr(expr: Expr, env: Map<string, Value>): Value {
   switch (expr.kind) {
     case "IntLit":
       return { kind: "Int", value: expr.value };
@@ -21,73 +34,129 @@ export function evaluate(expr: Expr, env: Map<string, Value> = new Map()): Value
     }
 
     case "BinOp": {
-      const left = evaluate(expr.left, env);
-      const right = evaluate(expr.right, env);
+      const left = evalExpr(expr.left, env);
+      const right = evalExpr(expr.right, env);
       return evalBinOp(expr.op, left, right);
     }
 
     case "UnaryOp": {
-      const operand = evaluate(expr.expr, env);
+      const operand = evalExpr(expr.expr, env);
       return evalUnaryOp(expr.op, operand);
     }
 
     case "Let": {
-      const value = evaluate(expr.value, env);
+      const value = evalExpr(expr.value, env);
       const newEnv = new Map(env);
       if (expr.rec && value.kind === "Closure") {
-        // For recursive bindings, the closure's env must include itself
         const recEnv = new Map(value.env);
         recEnv.set(expr.name, value);
         value.env = recEnv;
       }
       newEnv.set(expr.name, value);
-      return evaluate(expr.body, newEnv);
+      return evalExpr(expr.body, newEnv);
     }
 
     case "Fn":
       return { kind: "Closure", param: expr.param, body: expr.body, env: new Map(env) };
 
     case "Call": {
-      const fn = evaluate(expr.fn, env);
-      const arg = evaluate(expr.arg, env);
+      const fn = evalExpr(expr.fn, env);
+      const arg = evalExpr(expr.arg, env);
       return applyFn(fn, arg);
     }
 
     case "Match": {
-      const subject = evaluate(expr.subject, env);
+      const subject = evalExpr(expr.subject, env);
       for (const c of expr.cases) {
         const bindings = matchPattern(c.pattern, subject);
         if (bindings !== null) {
           const matchEnv = new Map(env);
           for (const [k, v] of bindings) matchEnv.set(k, v);
-          return evaluate(c.body, matchEnv);
+          return evalExpr(c.body, matchEnv);
         }
       }
       throw new Error("No matching pattern");
     }
 
+    case "Try": {
+      const val = evalExpr(expr.expr, env);
+      if (val.kind === "Tag" && val.tag === "Ok" && val.args.length === 1) {
+        return val.args[0];
+      }
+      if (val.kind === "Tag" && val.tag === "Err") {
+        throw new EarlyReturn(val);
+      }
+      throw new Error("? operator requires Ok(...) or Err(...)");
+    }
+
+    case "Catch": {
+      try {
+        const val = evalExpr(expr.expr, env);
+        if (val.kind === "Tag" && val.tag === "Ok" && val.args.length === 1) {
+          return val.args[0];
+        }
+        if (val.kind === "Tag" && val.tag === "Err" && val.args.length >= 1) {
+          const catchEnv = new Map(env);
+          catchEnv.set(expr.errorName, val.args[0]);
+          return evalExpr(expr.fallback, catchEnv);
+        }
+        return val;
+      } catch (e) {
+        if (e instanceof EarlyReturn) {
+          if (e.value.kind === "Tag" && e.value.tag === "Err" && e.value.args.length >= 1) {
+            const catchEnv = new Map(env);
+            catchEnv.set(expr.errorName, e.value.args[0]);
+            return evalExpr(expr.fallback, catchEnv);
+          }
+          return e.value;
+        }
+        throw e;
+      }
+    }
+
     case "Pipe": {
-      const left = evaluate(expr.left, env);
-      const right = evaluate(expr.right, env);
+      // Special handling: if right side is a Catch, fill in the left as expr
+      if (expr.right.kind === "Catch") {
+        const catchExpr: import("./ast").Catch = {
+          ...expr.right,
+          expr: expr.left,
+        };
+        return evalExpr(catchExpr, env);
+      }
+      // Special handling: if right side is Try, apply inner fn first then try
+      if (expr.right.kind === "Try") {
+        const left = evalExpr(expr.left, env);
+        const fn = evalExpr(expr.right.expr, env);
+        const result = applyFn(fn, left);
+        if (result.kind === "Tag" && result.tag === "Ok" && result.args.length === 1) {
+          return result.args[0];
+        }
+        if (result.kind === "Tag" && result.tag === "Err") {
+          throw new EarlyReturn(result);
+        }
+        throw new Error("? operator requires Ok(...) or Err(...)");
+      }
+      const left = evalExpr(expr.left, env);
+      const right = evalExpr(expr.right, env);
       return applyFn(right, left);
     }
 
     case "List":
-      return { kind: "List", elements: expr.elements.map(e => evaluate(e, env)) };
+      return { kind: "List", elements: expr.elements.map(e => evalExpr(e, env)) };
 
     case "Tuple":
-      return { kind: "Tuple", elements: expr.elements.map(e => evaluate(e, env)) };
+      return { kind: "Tuple", elements: expr.elements.map(e => evalExpr(e, env)) };
 
     case "Record": {
       const fields = new Map<string, Value>();
       for (const f of expr.fields) {
-        fields.set(f.name, evaluate(f.value, env));
+        fields.set(f.name, evalExpr(f.value, env));
       }
       return { kind: "Record", fields };
     }
 
     case "FieldAccess": {
-      const record = evaluate(expr.expr, env);
+      const record = evalExpr(expr.expr, env);
       if (record.kind !== "Record") throw new Error("Field access on non-record");
       const val = record.fields.get(expr.field);
       if (val === undefined) throw new Error(`No field ${expr.field}`);
@@ -95,12 +164,12 @@ export function evaluate(expr: Expr, env: Map<string, Value> = new Map()): Value
     }
 
     case "Tag":
-      return { kind: "Tag", tag: expr.tag, args: expr.args.map(a => evaluate(a, env)) };
+      return { kind: "Tag", tag: expr.tag, args: expr.args.map(a => evalExpr(a, env)) };
 
     case "If": {
-      const cond = evaluate(expr.cond, env);
+      const cond = evalExpr(expr.cond, env);
       if (cond.kind !== "Bool") throw new Error("If condition must be Bool");
-      return cond.value ? evaluate(expr.then, env) : evaluate(expr.else_, env);
+      return cond.value ? evalExpr(expr.then, env) : evalExpr(expr.else_, env);
     }
 
     default:
@@ -112,7 +181,7 @@ export function applyFn(fn: Value, arg: Value): Value {
   if (fn.kind === "Closure") {
     const newEnv = new Map(fn.env);
     newEnv.set(fn.param, arg);
-    return evaluate(fn.body, newEnv);
+    return evalExpr(fn.body, newEnv);
   }
   if (fn.kind === "BuiltinFn") {
     const applied = [...fn.applied, arg];
