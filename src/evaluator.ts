@@ -66,6 +66,37 @@ export function evaluate(expr: Expr, env: Map<string, Value> = new Map()): Value
       throw new Error("No matching pattern");
     }
 
+    case "Pipe": {
+      const left = evaluate(expr.left, env);
+      const right = evaluate(expr.right, env);
+      return applyFn(right, left);
+    }
+
+    case "List":
+      return { kind: "List", elements: expr.elements.map(e => evaluate(e, env)) };
+
+    case "Tuple":
+      return { kind: "Tuple", elements: expr.elements.map(e => evaluate(e, env)) };
+
+    case "Record": {
+      const fields = new Map<string, Value>();
+      for (const f of expr.fields) {
+        fields.set(f.name, evaluate(f.value, env));
+      }
+      return { kind: "Record", fields };
+    }
+
+    case "FieldAccess": {
+      const record = evaluate(expr.expr, env);
+      if (record.kind !== "Record") throw new Error("Field access on non-record");
+      const val = record.fields.get(expr.field);
+      if (val === undefined) throw new Error(`No field ${expr.field}`);
+      return val;
+    }
+
+    case "Tag":
+      return { kind: "Tag", tag: expr.tag, args: expr.args.map(a => evaluate(a, env)) };
+
     case "If": {
       const cond = evaluate(expr.cond, env);
       if (cond.kind !== "Bool") throw new Error("If condition must be Bool");

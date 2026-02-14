@@ -73,4 +73,63 @@ describe("Evaluator", () => {
       `)).toBe("120");
     });
   });
+
+  describe("pipes", () => {
+    it("pipes a value into a function", () => {
+      expect(runPrint("let double = fn(x) -> x * 2 in 5 |> double")).toBe("10");
+    });
+
+    it("chains pipes", () => {
+      expect(runPrint(`
+        let double = fn(x) -> x * 2
+        in let inc = fn(x) -> x + 1
+        in 5 |> double |> inc
+      `)).toBe("11");
+    });
+  });
+
+  describe("match", () => {
+    it("matches integer literals", () => {
+      expect(runPrint("match 1 { 1 -> true, 2 -> false }")).toBe("true");
+    });
+
+    it("matches wildcards", () => {
+      expect(runPrint("match 99 { 1 -> false, _ -> true }")).toBe("true");
+    });
+
+    it("matches and binds identifiers", () => {
+      expect(runPrint("match 5 { n -> n + 1 }")).toBe("6");
+    });
+
+    it("matches tagged values", () => {
+      expect(runPrint("match Ok(42) { Ok(n) -> n, Err(e) -> 0 }")).toBe("42");
+    });
+
+    it("matches booleans", () => {
+      expect(runPrint("match true { true -> 1, false -> 0 }")).toBe("1");
+    });
+  });
+
+  describe("data structures", () => {
+    it("evaluates lists", () => {
+      expect(runPrint("[1, 2, 3]")).toBe("[1, 2, 3]");
+    });
+
+    it("evaluates tuples", () => {
+      expect(runPrint('(1, "hello")')).toBe('(1, "hello")');
+    });
+
+    it("evaluates records", () => {
+      expect(runPrint('{ name: "Alice", age: 30 }')).toContain("name");
+    });
+
+    it("evaluates field access", () => {
+      expect(runPrint('let user = { name: "Alice" } in user.name')).toBe('"Alice"');
+    });
+
+    it("evaluates tagged values", () => {
+      expect(runPrint("Ok(42)")).toBe("Ok(42)");
+      expect(runPrint("None")).toBe("None");
+    });
+  });
 });
