@@ -255,4 +255,69 @@ describe("Parser", () => {
       });
     });
   });
+
+  describe("data structures", () => {
+    it("parses list literals", () => {
+      const ast = parseExpr("[1, 2, 3]");
+      expect(ast).toMatchObject({
+        kind: "List",
+        elements: [{ value: 1 }, { value: 2 }, { value: 3 }],
+      });
+    });
+
+    it("parses empty list", () => {
+      const ast = parseExpr("[]");
+      expect(ast).toMatchObject({ kind: "List", elements: [] });
+    });
+
+    it("parses tuples", () => {
+      const ast = parseExpr('(1, "hello")');
+      expect(ast).toMatchObject({
+        kind: "Tuple",
+        elements: [{ kind: "IntLit", value: 1 }, { kind: "StringLit", value: "hello" }],
+      });
+    });
+
+    it("parses record literals", () => {
+      const ast = parseExpr('{ name: "Alice", age: 30 }');
+      expect(ast).toMatchObject({
+        kind: "Record",
+        fields: [
+          { name: "name", value: { kind: "StringLit", value: "Alice" } },
+          { name: "age", value: { kind: "IntLit", value: 30 } },
+        ],
+      });
+    });
+
+    it("parses field access", () => {
+      const ast = parseExpr("user.name");
+      expect(ast).toMatchObject({
+        kind: "FieldAccess",
+        expr: { kind: "Ident", name: "user" },
+        field: "name",
+      });
+    });
+
+    it("parses tagged values", () => {
+      const ast = parseExpr("Ok(42)");
+      expect(ast).toMatchObject({
+        kind: "Tag",
+        tag: "Ok",
+        args: [{ kind: "IntLit", value: 42 }],
+      });
+    });
+
+    it("parses tags with no args", () => {
+      const ast = parseExpr("None");
+      expect(ast).toMatchObject({ kind: "Tag", tag: "None", args: [] });
+    });
+
+    it("parses nested tags", () => {
+      const ast = parseExpr("Ok(Some(5))");
+      expect(ast).toMatchObject({
+        kind: "Tag", tag: "Ok",
+        args: [{ kind: "Tag", tag: "Some", args: [{ kind: "IntLit", value: 5 }] }],
+      });
+    });
+  });
 });

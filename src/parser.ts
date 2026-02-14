@@ -147,12 +147,65 @@ class Parser {
         const expr = this.parseExpr(PREFIX_BP);
         return { kind: "UnaryOp", op: "-", expr, span: this.spanFrom(token.span) };
       }
-      // Parenthesized expression
+      // Parenthesized expression or tuple
       case TokenKind.LParen: {
-        this.advance();
-        const expr = this.parseExpr(0);
+        const lparen = this.advance();
+        if (this.at(TokenKind.RParen)) {
+          const rparen = this.advance();
+          return { kind: "UnitLit", span: { start: lparen.span.start, end: rparen.span.end } };
+        }
+        const first = this.parseExpr(0);
+        if (this.eat(TokenKind.Comma)) {
+          // It's a tuple
+          const elements: Expr[] = [first];
+          elements.push(this.parseExpr(0));
+          while (this.eat(TokenKind.Comma)) {
+            elements.push(this.parseExpr(0));
+          }
+          const rparen = this.expect(TokenKind.RParen);
+          return { kind: "Tuple", elements, span: { start: lparen.span.start, end: rparen.span.end } };
+        }
+        // It's grouping
         this.expect(TokenKind.RParen);
-        return expr;
+        return first;
+      }
+      // Record literal
+      case TokenKind.LBrace: {
+        const lbrace = this.advance();
+        const fields: { name: string; value: Expr }[] = [];
+        if (!this.at(TokenKind.RBrace)) {
+          const name = this.expect(TokenKind.Ident).lexeme;
+          this.expect(TokenKind.Colon);
+          const value = this.parseExpr(0);
+          fields.push({ name, value });
+          while (this.eat(TokenKind.Comma)) {
+            if (this.at(TokenKind.RBrace)) break;
+            const n = this.expect(TokenKind.Ident).lexeme;
+            this.expect(TokenKind.Colon);
+            const v = this.parseExpr(0);
+            fields.push({ name: n, value: v });
+          }
+        }
+        const rbrace = this.expect(TokenKind.RBrace);
+        return { kind: "Record", fields, span: { start: lbrace.span.start, end: rbrace.span.end } };
+      }
+      // Tagged values (UpperIdent)
+      case TokenKind.UpperIdent: {
+        this.advance();
+        const tag = token.lexeme;
+        const args: Expr[] = [];
+        if (this.at(TokenKind.LParen)) {
+          this.advance();
+          if (!this.at(TokenKind.RParen)) {
+            args.push(this.parseExpr(0));
+            while (this.eat(TokenKind.Comma)) {
+              args.push(this.parseExpr(0));
+            }
+          }
+          this.expect(TokenKind.RParen);
+        }
+        const endSpan = args.length > 0 ? args[args.length - 1].span : token.span;
+        return { kind: "Tag", tag, args, span: { start: token.span.start, end: this.tokens[this.pos - 1].span.end } };
       }
       default:
         throw new Error(`Unexpected token ${token.kind} ("${token.lexeme}") at line ${token.span.start.line}, col ${token.span.start.col}`);
@@ -316,6 +369,17 @@ class Parser {
   led(left: Expr, bp: [number, number]): Expr {
     const opToken = this.advance();
 
+    // Field access
+    if (opToken.kind === TokenKind.Dot) {
+      const field = this.expect(TokenKind.Ident);
+      return {
+        kind: "FieldAccess",
+        expr: left,
+        field: field.lexeme,
+        span: { start: left.span.start, end: field.span.end },
+      };
+    }
+
     // Pipe operator creates Pipe node, not BinOp
     if (opToken.kind === TokenKind.Pipe) {
       const right = this.parseExpr(bp[1]);
@@ -361,6 +425,7 @@ function infixBp(kind: TokenKind): [number, number] | null {
     case TokenKind.Star:
     case TokenKind.Slash:
     case TokenKind.Percent: return [70, 71];
+    case TokenKind.Dot: return [95, 96];
     default: return null;
   }
 }
