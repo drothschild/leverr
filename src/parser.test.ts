@@ -33,4 +33,62 @@ describe("Parser", () => {
       expect(ast).toMatchObject({ kind: "Ident", name: "foo" });
     });
   });
+
+  describe("operators", () => {
+    it("parses arithmetic", () => {
+      const ast = parseExpr("1 + 2");
+      expect(ast).toMatchObject({
+        kind: "BinOp", op: "+",
+        left: { kind: "IntLit", value: 1 },
+        right: { kind: "IntLit", value: 2 },
+      });
+    });
+
+    it("respects precedence: * binds tighter than +", () => {
+      const ast = parseExpr("1 + 2 * 3");
+      expect(ast).toMatchObject({
+        kind: "BinOp", op: "+",
+        left: { kind: "IntLit", value: 1 },
+        right: { kind: "BinOp", op: "*", left: { value: 2 }, right: { value: 3 } },
+      });
+    });
+
+    it("parses comparison operators", () => {
+      const ast = parseExpr("a == b");
+      expect(ast).toMatchObject({ kind: "BinOp", op: "==" });
+    });
+
+    it("parses logical operators", () => {
+      const ast = parseExpr("a && b || c");
+      expect(ast).toMatchObject({
+        kind: "BinOp", op: "||",
+        left: { kind: "BinOp", op: "&&" },
+        right: { kind: "Ident", name: "c" },
+      });
+    });
+
+    it("parses string concatenation", () => {
+      const ast = parseExpr('"a" ++ "b"');
+      expect(ast).toMatchObject({ kind: "BinOp", op: "++" });
+    });
+
+    it("parses unary negation", () => {
+      const ast = parseExpr("!true");
+      expect(ast).toMatchObject({ kind: "UnaryOp", op: "!", expr: { kind: "BoolLit", value: true } });
+    });
+
+    it("parses unary minus", () => {
+      const ast = parseExpr("-5");
+      expect(ast).toMatchObject({ kind: "UnaryOp", op: "-", expr: { kind: "IntLit", value: 5 } });
+    });
+
+    it("parses parenthesized expressions", () => {
+      const ast = parseExpr("(1 + 2) * 3");
+      expect(ast).toMatchObject({
+        kind: "BinOp", op: "*",
+        left: { kind: "BinOp", op: "+" },
+        right: { kind: "IntLit", value: 3 },
+      });
+    });
+  });
 });

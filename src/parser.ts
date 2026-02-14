@@ -41,6 +41,11 @@ class Parser {
     return null;
   }
 
+  spanFrom(start: Span): Span {
+    const prev = this.tokens[this.pos - 1] || this.peek();
+    return { start: start.start, end: prev.span.end };
+  }
+
   parseExpr(minBp: number): Expr {
     let left = this.nud();
     while (true) {
@@ -66,7 +71,6 @@ class Parser {
       }
       case TokenKind.String: {
         this.advance();
-        // Remove surrounding quotes
         const value = token.lexeme.slice(1, -1);
         return { kind: "StringLit", value, span: token.span };
       }
@@ -82,16 +86,83 @@ class Parser {
         this.advance();
         return { kind: "Ident", name: token.lexeme, span: token.span };
       }
+      // Unary operators
+      case TokenKind.Bang: {
+        this.advance();
+        const expr = this.parseExpr(PREFIX_BP);
+        return { kind: "UnaryOp", op: "!", expr, span: this.spanFrom(token.span) };
+      }
+      case TokenKind.Minus: {
+        this.advance();
+        const expr = this.parseExpr(PREFIX_BP);
+        return { kind: "UnaryOp", op: "-", expr, span: this.spanFrom(token.span) };
+      }
+      // Parenthesized expression
+      case TokenKind.LParen: {
+        this.advance();
+        const expr = this.parseExpr(0);
+        this.expect(TokenKind.RParen);
+        return expr;
+      }
       default:
         throw new Error(`Unexpected token ${token.kind} ("${token.lexeme}") at line ${token.span.start.line}, col ${token.span.start.col}`);
     }
   }
 
-  led(left: Expr, _bp: [number, number]): Expr {
-    throw new Error("No infix operators implemented yet");
+  led(left: Expr, bp: [number, number]): Expr {
+    const opToken = this.advance();
+    const op = tokenToOp(opToken.kind);
+    const right = this.parseExpr(bp[1]);
+    return {
+      kind: "BinOp",
+      op,
+      left,
+      right,
+      span: { start: left.span.start, end: right.span.end },
+    };
   }
 }
 
-function infixBp(_kind: TokenKind): [number, number] | null {
-  return null;
+const PREFIX_BP = 80;
+
+// Returns [left binding power, right binding power]
+// Left < right means left-associative
+function infixBp(kind: TokenKind): [number, number] | null {
+  switch (kind) {
+    case TokenKind.PipePipe: return [10, 11];
+    case TokenKind.AmpAmp: return [20, 21];
+    case TokenKind.EqEq:
+    case TokenKind.BangEq: return [30, 31];
+    case TokenKind.Lt:
+    case TokenKind.Gt:
+    case TokenKind.LtEq:
+    case TokenKind.GtEq: return [40, 41];
+    case TokenKind.PlusPlus: return [50, 51];
+    case TokenKind.Plus:
+    case TokenKind.Minus: return [60, 61];
+    case TokenKind.Star:
+    case TokenKind.Slash:
+    case TokenKind.Percent: return [70, 71];
+    default: return null;
+  }
+}
+
+function tokenToOp(kind: TokenKind): string {
+  switch (kind) {
+    case TokenKind.Plus: return "+";
+    case TokenKind.Minus: return "-";
+    case TokenKind.Star: return "*";
+    case TokenKind.Slash: return "/";
+    case TokenKind.Percent: return "%";
+    case TokenKind.PlusPlus: return "++";
+    case TokenKind.EqEq: return "==";
+    case TokenKind.BangEq: return "!=";
+    case TokenKind.Lt: return "<";
+    case TokenKind.Gt: return ">";
+    case TokenKind.LtEq: return "<=";
+    case TokenKind.GtEq: return ">=";
+    case TokenKind.AmpAmp: return "&&";
+    case TokenKind.PipePipe: return "||";
+    default: throw new Error(`Unknown operator token: ${kind}`);
+  }
 }
