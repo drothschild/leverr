@@ -1,0 +1,37 @@
+export type Type =
+  | { kind: "TCon"; name: string }
+  | { kind: "TVar"; id: number }
+  | { kind: "TFn"; param: Type; ret: Type }
+  | { kind: "TList"; element: Type }
+  | { kind: "TTuple"; elements: Type[] }
+  | { kind: "TRecord"; fields: Map<string, Type>; rest: Type | null }
+  | { kind: "TResult"; ok: Type }
+  | { kind: "TTag"; tag: string; args: Type[] };
+
+let _nextId = 0;
+export function freshTypeVar(): Type {
+  return { kind: "TVar", id: _nextId++ };
+}
+
+export function resetTypeVarCounter(): void {
+  _nextId = 0;
+}
+
+export function prettyType(t: Type): string {
+  switch (t.kind) {
+    case "TCon": return t.name;
+    case "TVar": return String.fromCharCode(97 + (t.id % 26));
+    case "TFn": {
+      const param = t.param.kind === "TFn" ? `(${prettyType(t.param)})` : prettyType(t.param);
+      return `${param} -> ${prettyType(t.ret)}`;
+    }
+    case "TList": return `List(${prettyType(t.element)})`;
+    case "TTuple": return `(${t.elements.map(prettyType).join(", ")})`;
+    case "TRecord": {
+      const fields = [...t.fields.entries()].map(([k, v]) => `${k}: ${prettyType(v)}`).join(", ");
+      return t.rest ? `{ ${fields} | ${prettyType(t.rest)} }` : `{ ${fields} }`;
+    }
+    case "TResult": return `Result(${prettyType(t.ok)}, String)`;
+    case "TTag": return t.args.length === 0 ? t.tag : `${t.tag}(${t.args.map(prettyType).join(", ")})`;
+  }
+}
