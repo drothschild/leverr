@@ -145,4 +145,62 @@ describe("Parser", () => {
       });
     });
   });
+
+  describe("pipes", () => {
+    it("parses pipe operator", () => {
+      const ast = parseExpr("5 |> double");
+      expect(ast).toMatchObject({
+        kind: "Pipe",
+        left: { kind: "IntLit", value: 5 },
+        right: { kind: "Ident", name: "double" },
+      });
+    });
+
+    it("chains pipes left-to-right", () => {
+      const ast = parseExpr("5 |> double |> print");
+      expect(ast).toMatchObject({
+        kind: "Pipe",
+        left: { kind: "Pipe", left: { value: 5 }, right: { name: "double" } },
+        right: { kind: "Ident", name: "print" },
+      });
+    });
+
+    it("parses pipe into partial application", () => {
+      const ast = parseExpr('[1, 2] |> map(fn(x) -> x * 2)');
+      expect(ast).toMatchObject({
+        kind: "Pipe",
+        left: { kind: "List" },
+        right: { kind: "Call" },
+      });
+    });
+  });
+
+  describe("try operator (?)", () => {
+    it("parses ? as postfix", () => {
+      const ast = parseExpr("parse_int(x)?");
+      expect(ast).toMatchObject({
+        kind: "Try",
+        expr: { kind: "Call" },
+      });
+    });
+
+    it("parses ? in pipeline", () => {
+      const ast = parseExpr("x |> parse?");
+      expect(ast).toMatchObject({
+        kind: "Pipe",
+        right: { kind: "Try", expr: { kind: "Ident", name: "parse" } },
+      });
+    });
+  });
+
+  describe("catch", () => {
+    it("parses catch expression", () => {
+      const ast = parseExpr("x |> parse? |> catch e -> 0");
+      expect(ast).toMatchObject({
+        kind: "Pipe",
+        left: { kind: "Pipe" },
+        right: { kind: "Catch", errorName: "e", fallback: { kind: "IntLit", value: 0 } },
+      });
+    });
+  });
 });

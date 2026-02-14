@@ -49,6 +49,12 @@ class Parser {
   parseExpr(minBp: number): Expr {
     let left = this.nud();
     while (true) {
+      // Postfix ? (Try operator)
+      if (this.at(TokenKind.Question) && POSTFIX_BP >= minBp) {
+        const qToken = this.advance();
+        left = { kind: "Try", expr: left, span: { start: left.span.start, end: qToken.span.end } };
+        continue;
+      }
       const token = this.peek();
       const bp = infixBp(token.kind);
       if (bp === null || bp[0] < minBp) break;
@@ -98,6 +104,33 @@ class Parser {
       // Function literal
       case TokenKind.Fn: {
         return this.parseFn();
+      }
+      // List literal (minimal for pipe tests, extended in Task 2.6)
+      case TokenKind.LBracket: {
+        const lbracket = this.advance();
+        const elements: Expr[] = [];
+        if (!this.at(TokenKind.RBracket)) {
+          elements.push(this.parseExpr(0));
+          while (this.eat(TokenKind.Comma)) {
+            elements.push(this.parseExpr(0));
+          }
+        }
+        const rbracket = this.expect(TokenKind.RBracket);
+        return { kind: "List", elements, span: { start: lbracket.span.start, end: rbracket.span.end } };
+      }
+      // Catch expression
+      case TokenKind.Catch: {
+        const catchToken = this.advance();
+        const errorName = this.expect(TokenKind.Ident).lexeme;
+        this.expect(TokenKind.Arrow);
+        const fallback = this.parseExpr(0);
+        return {
+          kind: "Catch",
+          expr: { kind: "UnitLit", span: catchToken.span } as Expr, // placeholder — pipe fills in actual expr
+          errorName,
+          fallback,
+          span: { start: catchToken.span.start, end: fallback.span.end },
+        };
       }
       // Unary operators
       case TokenKind.Bang: {
@@ -198,6 +231,18 @@ class Parser {
 
   led(left: Expr, bp: [number, number]): Expr {
     const opToken = this.advance();
+
+    // Pipe operator creates Pipe node, not BinOp
+    if (opToken.kind === TokenKind.Pipe) {
+      const right = this.parseExpr(bp[1]);
+      return {
+        kind: "Pipe",
+        left,
+        right,
+        span: { start: left.span.start, end: right.span.end },
+      };
+    }
+
     const op = tokenToOp(opToken.kind);
     const right = this.parseExpr(bp[1]);
     return {
@@ -211,11 +256,13 @@ class Parser {
 }
 
 const PREFIX_BP = 80;
+const POSTFIX_BP = 90;
 
 // Returns [left binding power, right binding power]
 // Left < right means left-associative
 function infixBp(kind: TokenKind): [number, number] | null {
   switch (kind) {
+    case TokenKind.Pipe: return [5, 6];
     case TokenKind.PipePipe: return [10, 11];
     case TokenKind.AmpAmp: return [20, 21];
     case TokenKind.EqEq:
