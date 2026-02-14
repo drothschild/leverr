@@ -153,4 +153,41 @@ describe("Lexer", () => {
       }
     });
   });
+
+  describe("complete programs", () => {
+    it("lexes a let binding with function", () => {
+      const tokens = lex("let add = fn(a, b) -> a + b");
+      const expected = [
+        TokenKind.Let, TokenKind.Ident, TokenKind.Eq, TokenKind.Fn,
+        TokenKind.LParen, TokenKind.Ident, TokenKind.Comma, TokenKind.Ident,
+        TokenKind.RParen, TokenKind.Arrow, TokenKind.Ident, TokenKind.Plus,
+        TokenKind.Ident, TokenKind.EOF,
+      ];
+      expect(kinds("let add = fn(a, b) -> a + b")).toEqual(expected);
+    });
+
+    it("lexes a pipeline with ? operator", () => {
+      expect(kinds('input |> parse_int? |> catch e -> 0')).toEqual([
+        TokenKind.Ident, TokenKind.Pipe, TokenKind.Ident, TokenKind.Question,
+        TokenKind.Pipe, TokenKind.Catch, TokenKind.Ident, TokenKind.Arrow,
+        TokenKind.Int, TokenKind.EOF,
+      ]);
+    });
+
+    it("lexes a record literal", () => {
+      expect(kinds('{ name: "Alice", age: 30 }')).toEqual([
+        TokenKind.LBrace, TokenKind.Ident, TokenKind.Colon, TokenKind.String,
+        TokenKind.Comma, TokenKind.Ident, TokenKind.Colon, TokenKind.Int,
+        TokenKind.RBrace, TokenKind.EOF,
+      ]);
+    });
+
+    it("lexes a match expression with tags", () => {
+      expect(kinds("match s { Circle(r) -> r }")).toEqual([
+        TokenKind.Match, TokenKind.Ident, TokenKind.LBrace,
+        TokenKind.UpperIdent, TokenKind.LParen, TokenKind.Ident, TokenKind.RParen,
+        TokenKind.Arrow, TokenKind.Ident, TokenKind.RBrace, TokenKind.EOF,
+      ]);
+    });
+  });
 });
