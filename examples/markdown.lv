@@ -24,21 +24,23 @@ let render_numbered = fn(items) ->
   (fold(1, fn(n, item) -> (let p1 = print(to_string(n) ++ ". " ++ item) in n + 1), items))
 in
 
--- Render a block-level node by printing its formatted output
+-- Render a block-level node, returning Ok/Err for error handling
 let render = fn(node) ->
   match node {
-    H1(text) -> print("# " ++ text),
-    H2(text) -> print("## " ++ text),
-    H3(text) -> print("### " ++ text),
-    Text(text) -> print(text),
-    BulletList(items) -> each(fn(item) -> print("- " ++ item), items),
-    NumberedList(items) -> render_numbered(items),
-    _ -> print("")
+    H1(text) -> (let p1 = print("# " ++ text) in Ok(())),
+    H2(text) -> (let p1 = print("## " ++ text) in Ok(())),
+    H3(text) -> (let p1 = print("### " ++ text) in Ok(())),
+    Text(text) -> (let p1 = print(text) in Ok(())),
+    BulletList(items) -> (let p1 = each(fn(item) -> print("- " ++ item), items) in Ok(())),
+    NumberedList(items) -> (let p1 = render_numbered(items) in Ok(())),
+    _ -> Err("unrecognized node")
   }
 in
 
--- Render a full document (list of nodes)
-let render_doc = fn(nodes) -> each(render, nodes) in
+-- Render a full document, catching errors per node
+let render_doc = fn(nodes) ->
+  each(fn(node) -> (render(node)? |> fn(v) -> v |> catch e -> print("Error: " ++ e)), nodes)
+in
 
 -- Build a sample document
 let doc = [
@@ -47,7 +49,8 @@ let doc = [
   H2("Features"),
   BulletList(["Tagged values as AST", "Recursive rendering", "Pattern matching"]),
   H2("Steps"),
-  NumberedList(["Parse", "Render", "Print"])
+  NumberedList(["Parse", "Render", "Print"]),
+  Strikethrough("oops")
 ] in
 
 let p1 = print("=== Markdown Renderer ===") in
