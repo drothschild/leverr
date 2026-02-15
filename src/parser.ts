@@ -349,6 +349,21 @@ class Parser {
         this.advance();
         return { kind: "WildcardPat" };
       }
+      case TokenKind.LParen: {
+        this.advance();
+        const first = this.parsePattern();
+        if (this.eat(TokenKind.Comma)) {
+          const elements: import("./ast").Pattern[] = [first];
+          elements.push(this.parsePattern());
+          while (this.eat(TokenKind.Comma)) {
+            elements.push(this.parsePattern());
+          }
+          this.expect(TokenKind.RParen);
+          return { kind: "TuplePat", elements };
+        }
+        this.expect(TokenKind.RParen);
+        return first;
+      }
       case TokenKind.UpperIdent: {
         this.advance();
         const tag = token.lexeme;

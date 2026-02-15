@@ -148,7 +148,7 @@ describe("End-to-end: Leverr programs", () => {
       }
     `);
     expect(result.error).toBeUndefined();
-    expect(result.output).toBe("locked");
+    expect(result.output).toBe('"locked"');
   });
 
   it("todo app example", () => {
