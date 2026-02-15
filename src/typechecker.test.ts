@@ -134,4 +134,26 @@ describe("Type Inference", () => {
       expect(() => typeOf("let x = 5 in x(3)")).toThrow();
     });
   });
+
+  describe("error messages", () => {
+    it("includes source location in type error", () => {
+      try {
+        infer(parse(lex('5 + "hello"')), undefined, '5 + "hello"');
+        expect.unreachable();
+      } catch (e: any) {
+        expect(e.message).toContain("line 1");
+        expect(e.message).toContain("Int");
+        expect(e.message).toContain("String");
+      }
+    });
+
+    it("includes helpful message for ? on non-Result", () => {
+      try {
+        infer(parse(lex("5?")), undefined, "5?");
+        expect.unreachable();
+      } catch (e: any) {
+        expect(e.message).toContain("Result");
+      }
+    });
+  });
 });

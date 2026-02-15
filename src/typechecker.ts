@@ -1,6 +1,8 @@
 import { Expr } from "./ast";
-import { Type, freshTypeVar } from "./types";
+import { Type, freshTypeVar, prettyType } from "./types";
 import { Substitution, unify, applySubst } from "./unify";
+import { LeverrError } from "./errors";
+import { Span } from "./span";
 
 // A type scheme: forall quantifiedVars . type
 interface Scheme {
@@ -94,10 +96,29 @@ function applySubstEnv(subst: Substitution, env: TypeEnv): TypeEnv {
   return result;
 }
 
-export function infer(expr: Expr, env?: TypeEnv): Type {
+let _source: string | undefined;
+
+function typeError(msg: string, span: Span): Error {
+  if (_source) return new LeverrError(msg, span, _source);
+  return new TypeError(msg);
+}
+
+export function infer(expr: Expr, env?: TypeEnv, source?: string): Type {
+  _source = source;
   const defaultEnv: TypeEnv = env ?? new Map();
   const [type, subst] = inferExpr(expr, defaultEnv, new Map());
   return applySubst(subst, type);
+}
+
+function withSpan<T>(fn: () => T, span: Span): T {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof TypeError && _source) {
+      throw new LeverrError(e.message, span, _source);
+    }
+    throw e;
+  }
 }
 
 function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substitution] {
@@ -117,7 +138,7 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
     case "BinOp": {
       const [leftT, s1] = inferExpr(expr.left, env, subst);
       const [rightT, s2] = inferExpr(expr.right, env, s1);
-      return inferBinOp(expr.op, leftT, rightT, s2);
+      return withSpan(() => inferBinOp(expr.op, leftT, rightT, s2), expr.span);
     }
 
     case "UnaryOp": {
@@ -160,7 +181,7 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
       const [fnT, s1] = inferExpr(expr.fn, env, subst);
       const [argT, s2] = inferExpr(expr.arg, env, s1);
       const retT = freshTypeVar();
-      const s3 = unify(applySubst(s2, fnT), { kind: "TFn", param: argT, ret: retT }, s2);
+      const s3 = withSpan(() => unify(applySubst(s2, fnT), { kind: "TFn", param: argT, ret: retT }, s2), expr.span);
       return [applySubst(s3, retT), s3];
     }
 
@@ -274,8 +295,13 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
     case "Try": {
       const [exprT, s1] = inferExpr(expr.expr, env, subst);
       const okT = freshTypeVar();
-      const s2 = unify(exprT, { kind: "TResult", ok: okT }, s1);
-      return [applySubst(s2, okT), s2];
+      const resolvedExprT = applySubst(s1, exprT);
+      try {
+        const s2 = unify(resolvedExprT, { kind: "TResult", ok: okT }, s1);
+        return [applySubst(s2, okT), s2];
+      } catch {
+        throw typeError(`The ? operator requires a Result type, but got ${prettyType(resolvedExprT)}`, expr.span);
+      }
     }
 
     case "Catch": {
