@@ -173,7 +173,7 @@ function evalExpr(expr: Expr, env: Map<string, Value>): Value {
     }
 
     default:
-      throw new Error(`Cannot evaluate ${expr.kind} yet`);
+      throw new Error(`Cannot evaluate ${(expr as any).kind} yet`);
   }
 }
 

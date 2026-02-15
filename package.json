@@ -2,7 +2,10 @@
   "name": "leverr",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "bin": {
+    "leverr": "./dist/index.js"
+  },
   "directories": {
     "doc": "docs"
   },
