@@ -1,7 +1,7 @@
 import { Expr } from "./ast";
 import { Type, freshTypeVar, prettyType } from "./types";
 import { Substitution, unify, applySubst } from "./unify";
-import { LeverrError } from "./errors";
+import { RillError } from "./errors";
 import { Span } from "./span";
 
 // A type scheme: forall quantifiedVars . type
@@ -99,7 +99,7 @@ function applySubstEnv(subst: Substitution, env: TypeEnv): TypeEnv {
 let _source: string | undefined;
 
 function typeError(msg: string, span: Span): Error {
-  if (_source) return new LeverrError(msg, span, _source);
+  if (_source) return new RillError(msg, span, _source);
   return new TypeError(msg);
 }
 
@@ -115,7 +115,7 @@ function withSpan<T>(fn: () => T, span: Span): T {
     return fn();
   } catch (e) {
     if (e instanceof TypeError && _source) {
-      throw new LeverrError(e.message, span, _source);
+      throw new RillError(e.message, span, _source);
     }
     throw e;
   }

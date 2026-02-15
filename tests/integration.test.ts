@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { runSource } from "../src/runner";
 
-describe("End-to-end: Leverr programs", () => {
+describe("End-to-end: Rill programs", () => {
   it("fibonacci", () => {
     const result = runSource(`
       let rec fib = fn(n) ->
@@ -164,8 +164,8 @@ describe("End-to-end: Leverr programs", () => {
 
     expect(result.error).toBeUndefined();
     expect(result.output).toBe("()");
-    expect(logs).toContain("=== Leverr Todo App ===");
-    expect(logs).toContain("[x] Learn Leverr");
+    expect(logs).toContain("=== Rill Todo App ===");
+    expect(logs).toContain("[x] Learn Rill");
     expect(logs).toContain("[ ] Write a demo");
     expect(logs).toContain("Pending items:");
     expect(logs).toContain("  [ ] Write a demo");

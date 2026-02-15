@@ -2,7 +2,7 @@
 -- Showcases records, tagged values, pipelines, pattern matching, and error handling
 
 let todos = [
-  { title: "Learn Leverr", status: Done },
+  { title: "Learn Rill", status: Done },
   { title: "Write a demo", status: Todo },
   { title: "Share with friends", status: Todo },
   { title: "Build something cool", status: Todo }
@@ -34,7 +34,7 @@ let count_pending = fn(todos) ->
 in
 
 -- Print all todos
-let p1 = print("=== Leverr Todo App ===") in
+let p1 = print("=== Rill Todo App ===") in
 let p2 = print("") in
 let p3 = print("All todos:") in
 let p4 = todos |> map(format_todo) |> each(print) in

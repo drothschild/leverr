@@ -1,6 +1,6 @@
 import { Span, formatSpan } from "./span";
 
-export class LeverrError extends Error {
+export class RillError extends Error {
   constructor(
     public msg: string,
     public span: Span,

@@ -75,7 +75,7 @@ describe("Lexer", () => {
       ]);
     });
 
-    it("lexes Leverr-specific operators", () => {
+    it("lexes Rill-specific operators", () => {
       expect(kinds("|> ++ -> ?")).toEqual([
         TokenKind.Pipe, TokenKind.PlusPlus, TokenKind.Arrow, TokenKind.Question, TokenKind.EOF,
       ]);
