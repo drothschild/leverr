@@ -1,0 +1,458 @@
+import { Token, TokenKind } from "./token";
+import { Expr } from "./ast";
+import { Span } from "./span";
+
+export function parse(tokens: Token[]): Expr {
+  const parser = new Parser(tokens);
+  const expr = parser.parseExpr(0);
+  parser.expect(TokenKind.EOF);
+  return expr;
+}
+
+class Parser {
+  private pos = 0;
+
+  constructor(private tokens: Token[]) {}
+
+  peek(): Token {
+    return this.tokens[this.pos];
+  }
+
+  advance(): Token {
+    const token = this.tokens[this.pos];
+    this.pos++;
+    return token;
+  }
+
+  expect(kind: TokenKind): Token {
+    const token = this.peek();
+    if (token.kind !== kind) {
+      throw new Error(`Expected ${kind} but got ${token.kind} at line ${token.span.start.line}, col ${token.span.start.col}`);
+    }
+    return this.advance();
+  }
+
+  at(kind: TokenKind): boolean {
+    return this.peek().kind === kind;
+  }
+
+  eat(kind: TokenKind): Token | null {
+    if (this.at(kind)) return this.advance();
+    return null;
+  }
+
+  spanFrom(start: Span): Span {
+    const prev = this.tokens[this.pos - 1] || this.peek();
+    return { start: start.start, end: prev.span.end };
+  }
+
+  parseExpr(minBp: number): Expr {
+    let left = this.nud();
+    while (true) {
+      // Postfix ? (Try operator)
+      if (this.at(TokenKind.Question) && POSTFIX_BP >= minBp) {
+        const qToken = this.advance();
+        left = { kind: "Try", expr: left, span: { start: left.span.start, end: qToken.span.end } };
+        continue;
+      }
+      const token = this.peek();
+      const bp = infixBp(token.kind);
+      if (bp === null || bp[0] < minBp) break;
+      left = this.led(left, bp);
+    }
+    return left;
+  }
+
+  nud(): Expr {
+    const token = this.peek();
+
+    switch (token.kind) {
+      case TokenKind.Int: {
+        this.advance();
+        return { kind: "IntLit", value: parseInt(token.lexeme, 10), span: token.span };
+      }
+      case TokenKind.Float: {
+        this.advance();
+        return { kind: "FloatLit", value: parseFloat(token.lexeme), span: token.span };
+      }
+      case TokenKind.String: {
+        this.advance();
+        const value = token.lexeme.slice(1, -1);
+        return { kind: "StringLit", value, span: token.span };
+      }
+      case TokenKind.True: {
+        this.advance();
+        return { kind: "BoolLit", value: true, span: token.span };
+      }
+      case TokenKind.False: {
+        this.advance();
+        return { kind: "BoolLit", value: false, span: token.span };
+      }
+      case TokenKind.Ident: {
+        this.advance();
+        let expr: Expr = { kind: "Ident", name: token.lexeme, span: token.span };
+        // Handle function call: ident followed by (
+        while (this.at(TokenKind.LParen)) {
+          expr = this.parseCallArgs(expr);
+        }
+        return expr;
+      }
+      // Let binding
+      case TokenKind.Let: {
+        return this.parseLet();
+      }
+      // Function literal
+      case TokenKind.Fn: {
+        return this.parseFn();
+      }
+      // Match expression
+      case TokenKind.Match: {
+        return this.parseMatch();
+      }
+      // List literal
+      case TokenKind.LBracket: {
+        const lbracket = this.advance();
+        const elements: Expr[] = [];
+        if (!this.at(TokenKind.RBracket)) {
+          elements.push(this.parseExpr(0));
+          while (this.eat(TokenKind.Comma)) {
+            elements.push(this.parseExpr(0));
+          }
+        }
+        const rbracket = this.expect(TokenKind.RBracket);
+        return { kind: "List", elements, span: { start: lbracket.span.start, end: rbracket.span.end } };
+      }
+      // Catch expression
+      case TokenKind.Catch: {
+        const catchToken = this.advance();
+        const errorName = this.expect(TokenKind.Ident).lexeme;
+        this.expect(TokenKind.Arrow);
+        const fallback = this.parseExpr(0);
+        return {
+          kind: "Catch",
+          expr: { kind: "UnitLit", span: catchToken.span } as Expr, // placeholder — pipe fills in actual expr
+          errorName,
+          fallback,
+          span: { start: catchToken.span.start, end: fallback.span.end },
+        };
+      }
+      // Unary operators
+      case TokenKind.Bang: {
+        this.advance();
+        const expr = this.parseExpr(PREFIX_BP);
+        return { kind: "UnaryOp", op: "!", expr, span: this.spanFrom(token.span) };
+      }
+      case TokenKind.Minus: {
+        this.advance();
+        const expr = this.parseExpr(PREFIX_BP);
+        return { kind: "UnaryOp", op: "-", expr, span: this.spanFrom(token.span) };
+      }
+      // Parenthesized expression or tuple
+      case TokenKind.LParen: {
+        const lparen = this.advance();
+        if (this.at(TokenKind.RParen)) {
+          const rparen = this.advance();
+          return { kind: "UnitLit", span: { start: lparen.span.start, end: rparen.span.end } };
+        }
+        const first = this.parseExpr(0);
+        if (this.eat(TokenKind.Comma)) {
+          // It's a tuple
+          const elements: Expr[] = [first];
+          elements.push(this.parseExpr(0));
+          while (this.eat(TokenKind.Comma)) {
+            elements.push(this.parseExpr(0));
+          }
+          const rparen = this.expect(TokenKind.RParen);
+          return { kind: "Tuple", elements, span: { start: lparen.span.start, end: rparen.span.end } };
+        }
+        // It's grouping
+        this.expect(TokenKind.RParen);
+        return first;
+      }
+      // Record literal
+      case TokenKind.LBrace: {
+        const lbrace = this.advance();
+        const fields: { name: string; value: Expr }[] = [];
+        if (!this.at(TokenKind.RBrace)) {
+          const name = this.expect(TokenKind.Ident).lexeme;
+          this.expect(TokenKind.Colon);
+          const value = this.parseExpr(0);
+          fields.push({ name, value });
+          while (this.eat(TokenKind.Comma)) {
+            if (this.at(TokenKind.RBrace)) break;
+            const n = this.expect(TokenKind.Ident).lexeme;
+            this.expect(TokenKind.Colon);
+            const v = this.parseExpr(0);
+            fields.push({ name: n, value: v });
+          }
+        }
+        const rbrace = this.expect(TokenKind.RBrace);
+        return { kind: "Record", fields, span: { start: lbrace.span.start, end: rbrace.span.end } };
+      }
+      // Tagged values (UpperIdent)
+      case TokenKind.UpperIdent: {
+        this.advance();
+        const tag = token.lexeme;
+        const args: Expr[] = [];
+        if (this.at(TokenKind.LParen)) {
+          this.advance();
+          if (!this.at(TokenKind.RParen)) {
+            args.push(this.parseExpr(0));
+            while (this.eat(TokenKind.Comma)) {
+              args.push(this.parseExpr(0));
+            }
+          }
+          this.expect(TokenKind.RParen);
+        }
+        const endSpan = args.length > 0 ? args[args.length - 1].span : token.span;
+        return { kind: "Tag", tag, args, span: { start: token.span.start, end: this.tokens[this.pos - 1].span.end } };
+      }
+      default:
+        throw new Error(`Unexpected token ${token.kind} ("${token.lexeme}") at line ${token.span.start.line}, col ${token.span.start.col}`);
+    }
+  }
+
+  parseLet(): Expr {
+    const letToken = this.expect(TokenKind.Let);
+    const rec = !!this.eat(TokenKind.Rec);
+    const nameToken = this.expect(TokenKind.Ident);
+    this.expect(TokenKind.Eq);
+    const value = this.parseExpr(0);
+    this.expect(TokenKind.In);
+    const body = this.parseExpr(0);
+    return {
+      kind: "Let",
+      name: nameToken.lexeme,
+      value,
+      body,
+      rec,
+      span: { start: letToken.span.start, end: body.span.end },
+    };
+  }
+
+  parseFn(): Expr {
+    const fnToken = this.expect(TokenKind.Fn);
+    const params: string[] = [];
+    if (this.eat(TokenKind.LParen)) {
+      // fn(a, b) -> ...
+      if (!this.at(TokenKind.RParen)) {
+        params.push(this.expect(TokenKind.Ident).lexeme);
+        while (this.eat(TokenKind.Comma)) {
+          params.push(this.expect(TokenKind.Ident).lexeme);
+        }
+      }
+      this.expect(TokenKind.RParen);
+    } else {
+      // fn x -> ... (shorthand single param)
+      params.push(this.expect(TokenKind.Ident).lexeme);
+    }
+    this.expect(TokenKind.Arrow);
+    // Stop fn body before pipe operator so pipes stay at the outer level
+    // |> has left bp 5, so using minBp 6 stops before consuming pipes
+    const body = this.parseExpr(6);
+
+    // Desugar multi-param into nested Fn nodes (right to left)
+    let result: Expr = body;
+    for (let i = params.length - 1; i >= 1; i--) {
+      result = {
+        kind: "Fn",
+        param: params[i],
+        body: result,
+        span: { start: fnToken.span.start, end: body.span.end },
+      };
+    }
+    return {
+      kind: "Fn",
+      param: params[0] || "_",
+      body: result,
+      span: { start: fnToken.span.start, end: body.span.end },
+    };
+  }
+
+  parseCallArgs(fn: Expr): Expr {
+    this.expect(TokenKind.LParen);
+    const args: Expr[] = [];
+    if (!this.at(TokenKind.RParen)) {
+      args.push(this.parseExpr(0));
+      while (this.eat(TokenKind.Comma)) {
+        args.push(this.parseExpr(0));
+      }
+    }
+    const rparen = this.expect(TokenKind.RParen);
+
+    // Desugar multi-arg call into nested Call nodes
+    let result: Expr = fn;
+    for (const arg of args) {
+      result = {
+        kind: "Call",
+        fn: result,
+        arg,
+        span: { start: fn.span.start, end: rparen.span.end },
+      };
+    }
+    return result;
+  }
+
+  parseMatch(): Expr {
+    const matchToken = this.expect(TokenKind.Match);
+    const subject = this.parseExpr(0);
+    this.expect(TokenKind.LBrace);
+    const cases: { pattern: import("./ast").Pattern; body: Expr }[] = [];
+    if (!this.at(TokenKind.RBrace)) {
+      cases.push(this.parseMatchCase());
+      while (this.eat(TokenKind.Comma)) {
+        if (this.at(TokenKind.RBrace)) break; // trailing comma
+        cases.push(this.parseMatchCase());
+      }
+    }
+    const rbrace = this.expect(TokenKind.RBrace);
+    return {
+      kind: "Match",
+      subject,
+      cases,
+      span: { start: matchToken.span.start, end: rbrace.span.end },
+    };
+  }
+
+  parseMatchCase(): { pattern: import("./ast").Pattern; body: Expr } {
+    const pattern = this.parsePattern();
+    this.expect(TokenKind.Arrow);
+    const body = this.parseExpr(0);
+    return { pattern, body };
+  }
+
+  parsePattern(): import("./ast").Pattern {
+    const token = this.peek();
+
+    switch (token.kind) {
+      case TokenKind.Int: {
+        this.advance();
+        return { kind: "IntPat", value: parseInt(token.lexeme, 10) };
+      }
+      case TokenKind.Float: {
+        this.advance();
+        return { kind: "FloatPat", value: parseFloat(token.lexeme) };
+      }
+      case TokenKind.String: {
+        this.advance();
+        return { kind: "StringPat", value: token.lexeme.slice(1, -1) };
+      }
+      case TokenKind.True: {
+        this.advance();
+        return { kind: "BoolPat", value: true };
+      }
+      case TokenKind.False: {
+        this.advance();
+        return { kind: "BoolPat", value: false };
+      }
+      case TokenKind.Underscore: {
+        this.advance();
+        return { kind: "WildcardPat" };
+      }
+      case TokenKind.UpperIdent: {
+        this.advance();
+        const tag = token.lexeme;
+        const args: import("./ast").Pattern[] = [];
+        if (this.eat(TokenKind.LParen)) {
+          if (!this.at(TokenKind.RParen)) {
+            args.push(this.parsePattern());
+            while (this.eat(TokenKind.Comma)) {
+              args.push(this.parsePattern());
+            }
+          }
+          this.expect(TokenKind.RParen);
+        }
+        return { kind: "TagPat", tag, args };
+      }
+      case TokenKind.Ident: {
+        this.advance();
+        return { kind: "IdentPat", name: token.lexeme };
+      }
+      default:
+        throw new Error(`Unexpected pattern token ${token.kind} at line ${token.span.start.line}, col ${token.span.start.col}`);
+    }
+  }
+
+  led(left: Expr, bp: [number, number]): Expr {
+    const opToken = this.advance();
+
+    // Field access
+    if (opToken.kind === TokenKind.Dot) {
+      const field = this.expect(TokenKind.Ident);
+      return {
+        kind: "FieldAccess",
+        expr: left,
+        field: field.lexeme,
+        span: { start: left.span.start, end: field.span.end },
+      };
+    }
+
+    // Pipe operator creates Pipe node, not BinOp
+    if (opToken.kind === TokenKind.Pipe) {
+      const right = this.parseExpr(bp[1]);
+      return {
+        kind: "Pipe",
+        left,
+        right,
+        span: { start: left.span.start, end: right.span.end },
+      };
+    }
+
+    const op = tokenToOp(opToken.kind);
+    const right = this.parseExpr(bp[1]);
+    return {
+      kind: "BinOp",
+      op,
+      left,
+      right,
+      span: { start: left.span.start, end: right.span.end },
+    };
+  }
+}
+
+const PREFIX_BP = 80;
+const POSTFIX_BP = 90;
+
+// Returns [left binding power, right binding power]
+// Left < right means left-associative
+function infixBp(kind: TokenKind): [number, number] | null {
+  switch (kind) {
+    case TokenKind.Pipe: return [5, 6];
+    case TokenKind.PipePipe: return [10, 11];
+    case TokenKind.AmpAmp: return [20, 21];
+    case TokenKind.EqEq:
+    case TokenKind.BangEq: return [30, 31];
+    case TokenKind.Lt:
+    case TokenKind.Gt:
+    case TokenKind.LtEq:
+    case TokenKind.GtEq: return [40, 41];
+    case TokenKind.PlusPlus: return [50, 51];
+    case TokenKind.Plus:
+    case TokenKind.Minus: return [60, 61];
+    case TokenKind.Star:
+    case TokenKind.Slash:
+    case TokenKind.Percent: return [70, 71];
+    case TokenKind.Dot: return [95, 96];
+    default: return null;
+  }
+}
+
+function tokenToOp(kind: TokenKind): string {
+  switch (kind) {
+    case TokenKind.Plus: return "+";
+    case TokenKind.Minus: return "-";
+    case TokenKind.Star: return "*";
+    case TokenKind.Slash: return "/";
+    case TokenKind.Percent: return "%";
+    case TokenKind.PlusPlus: return "++";
+    case TokenKind.EqEq: return "==";
+    case TokenKind.BangEq: return "!=";
+    case TokenKind.Lt: return "<";
+    case TokenKind.Gt: return ">";
+    case TokenKind.LtEq: return "<=";
+    case TokenKind.GtEq: return ">=";
+    case TokenKind.AmpAmp: return "&&";
+    case TokenKind.PipePipe: return "||";
+    default: throw new Error(`Unknown operator token: ${kind}`);
+  }
+}
