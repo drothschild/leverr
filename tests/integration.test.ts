@@ -85,6 +85,27 @@ describe("End-to-end: Leverr programs", () => {
     expect(result.output).toBe("11");
   });
 
+  it("calc expression evaluator example", () => {
+    const source = readFileSync(join(__dirname, "../examples/calc.lv"), "utf-8");
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+
+    const result = runSource(source);
+
+    spy.mockRestore();
+
+    expect(result.error).toBeUndefined();
+    expect(result.output).toBe("()");
+    expect(logs).toContain("=== Expression Evaluator ===");
+    expect(logs).toContain("2 + 3 = 5");
+    expect(logs).toContain("(2 + 3) * -(4) = -20");
+    expect(logs).toContain("10 / 0 = Error: division by zero");
+    expect(logs).toContain("10 / 3 = 3");
+    expect(logs).toContain("=== Done! ===");
+  });
+
   it("todo app example", () => {
     const source = readFileSync(join(__dirname, "../examples/todo.lv"), "utf-8");
     const logs: string[] = [];
