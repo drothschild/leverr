@@ -17,16 +17,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/drothschild/leverr.git"
+    "url": "git+https://github.com/drothschild/rill-lang.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/drothschild/leverr/issues"
+    "url": "https://github.com/drothschild/rill-lang/issues"
   },
-  "homepage": "https://github.com/drothschild/leverr#readme",
+  "homepage": "https://github.com/drothschild/rill-lang#readme",
   "devDependencies": {
     "@types/node": "^25.2.3",
     "tsx": "^4.21.0",
