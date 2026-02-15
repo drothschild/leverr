@@ -175,6 +175,7 @@ describe("End-to-end: Rill programs", () => {
     expect(logs).toContain("1. Parse");
     expect(logs).toContain("2. Render");
     expect(logs).toContain("3. Print");
+    expect(logs).toContain("Error: unrecognized node");
     expect(logs).toContain("=== Done! ===");
   });
 
