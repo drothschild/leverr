@@ -244,6 +244,32 @@ describe("Parser", () => {
       });
     });
 
+    it("parses match with tuple pattern", () => {
+      const ast = parseExpr("match pair { (x, y) -> x + y }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        cases: [
+          {
+            pattern: {
+              kind: "TuplePat",
+              elements: [
+                { kind: "IdentPat", name: "x" },
+                { kind: "IdentPat", name: "y" },
+              ],
+            },
+          },
+        ],
+      });
+    });
+
+    it("parses match with grouped pattern in parens", () => {
+      const ast = parseExpr("match x { (n) -> n }");
+      expect(ast).toMatchObject({
+        kind: "Match",
+        cases: [{ pattern: { kind: "IdentPat", name: "n" } }],
+      });
+    });
+
     it("parses match with boolean patterns", () => {
       const ast = parseExpr("match b { true -> 1, false -> 0 }");
       expect(ast).toMatchObject({

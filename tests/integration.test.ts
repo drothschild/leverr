@@ -130,6 +130,27 @@ describe("End-to-end: Leverr programs", () => {
     expect(logs).toContain("=== Done! ===");
   });
 
+  it("tuple pattern matching in match expressions", () => {
+    const result = runSource(`
+      let transition = fn(state, event) ->
+        match (state, event) {
+          (Locked, Coin) -> Unlocked,
+          (Locked, Push) -> Locked,
+          (Unlocked, Push) -> Locked,
+          (Unlocked, Coin) -> Unlocked
+        }
+      in
+      let s1 = transition(Locked, Coin) in
+      let s2 = transition(s1, Push) in
+      match s2 {
+        Locked -> "locked",
+        Unlocked -> "unlocked"
+      }
+    `);
+    expect(result.error).toBeUndefined();
+    expect(result.output).toBe("locked");
+  });
+
   it("todo app example", () => {
     const source = readFileSync(join(__dirname, "../examples/todo.lv"), "utf-8");
     const logs: string[] = [];
