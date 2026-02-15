@@ -1,0 +1,55 @@
+-- Markdown Renderer
+-- A mini markdown renderer that builds a document AST from tagged values
+-- and recursively renders it to formatted text
+-- Showcases tagged values as AST, pattern matching, and list processing
+
+-- AST node types:
+-- H1(text), H2(text), H3(text) — headers
+-- Bold(text), Italic(text)     — inline formatting
+-- Text(text)                   — plain text
+-- BulletList(items)            — unordered list (list of strings)
+-- NumberedList(items)          — ordered list (list of strings)
+
+-- Render inline formatting to a string
+let inline = fn(node) ->
+  match node {
+    Bold(text) -> "**" ++ text ++ "**",
+    Italic(text) -> "*" ++ text ++ "*",
+    _ -> to_string(node)
+  }
+in
+
+-- Render a numbered list: fold to track the index
+let render_numbered = fn(items) ->
+  (fold(1, fn(n, item) -> (let p1 = print(to_string(n) ++ ". " ++ item) in n + 1), items))
+in
+
+-- Render a block-level node by printing its formatted output
+let render = fn(node) ->
+  match node {
+    H1(text) -> print("# " ++ text),
+    H2(text) -> print("## " ++ text),
+    H3(text) -> print("### " ++ text),
+    Text(text) -> print(text),
+    BulletList(items) -> each(fn(item) -> print("- " ++ item), items),
+    NumberedList(items) -> render_numbered(items),
+    _ -> print("")
+  }
+in
+
+-- Render a full document (list of nodes)
+let render_doc = fn(nodes) -> each(render, nodes) in
+
+-- Build a sample document
+let doc = [
+  H1("My Document"),
+  Text("A quick demo with " ++ inline(Bold("bold")) ++ " and " ++ inline(Italic("italic")) ++ " text."),
+  H2("Features"),
+  BulletList(["Tagged values as AST", "Recursive rendering", "Pattern matching"]),
+  H2("Steps"),
+  NumberedList(["Parse", "Render", "Print"])
+] in
+
+let p1 = print("=== Markdown Renderer ===") in
+let p2 = render_doc(doc) in
+print("=== Done! ===")
