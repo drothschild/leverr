@@ -1,6 +1,6 @@
 # Leverr
 
-A statically-typed scripting language with Hindley-Milner type inference, pipeline operators, and first-class error handling. Built as a tree-walking interpreter in TypeScript.
+A statically-typed scripting language with [Hindley-Milner](https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system) type inference, pipeline operators, and first-class error handling. Built as a [tree-walking interpreter](https://en.wikipedia.org/wiki/Interpreter_(computing)#Abstract_syntax_tree_interpreters) in TypeScript.
 
 ## Quick Example
 
@@ -98,8 +98,8 @@ Source → Lexer → Parser → Type Checker → Evaluator → Result
 ```
 
 - **Lexer** (`src/lexer.ts`): Character-by-character scanning, produces tokens with source spans
-- **Parser** (`src/parser.ts`): Pratt parser with precedence climbing for all expressions
-- **Type Checker** (`src/typechecker.ts`): Algorithm W with let-polymorphism and unification
+- **Parser** (`src/parser.ts`): [Pratt parser](https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing) with precedence climbing for all expressions
+- **Type Checker** (`src/typechecker.ts`): [Algorithm W](https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system#Algorithm_W) with let-polymorphism and unification
 - **Evaluator** (`src/evaluator.ts`): Tree-walking interpreter with closures and exception-based `?` operator
 - **Prelude** (`src/prelude.ts`): Built-in functions (map, filter, fold, head, tail, etc.)
 
