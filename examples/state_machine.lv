@@ -1,0 +1,50 @@
+-- Turnstile State Machine
+-- A classic finite state machine using tagged values as states/events
+-- Showcases nested pattern matching, recursive list processing, and zero-arg tags
+
+-- Transition function: given state and event, return Next(new_state, message)
+let transition = fn(state, event) ->
+  match state {
+    Locked -> match event {
+      Coin -> Next(Unlocked, "Coin inserted: unlocked!"),
+      Push -> Next(Locked, "Pushed: still locked.")
+    },
+    Unlocked -> match event {
+      Push -> Next(Locked, "Pushed through: locked!"),
+      Coin -> Next(Unlocked, "Extra coin: already unlocked.")
+    }
+  }
+in
+
+-- Convert a state tag to a string
+let show_state = fn(s) ->
+  match s {
+    Locked -> "Locked",
+    Unlocked -> "Unlocked"
+  }
+in
+
+-- Recursively process a list of events
+let rec run = fn(state, events) ->
+  match length(events) == 0 {
+    true -> state,
+    false ->
+      let event = head(events)? in
+      let result = transition(state, event) in
+      match result {
+        Next(new_state, msg) ->
+          let p1 = print(msg) in
+          let remaining = tail(events)? in
+          run(new_state, remaining)
+      }
+  }
+in
+
+let p1 = print("=== Turnstile State Machine ===") in
+let p2 = print("Start: " ++ show_state(Locked)) in
+
+let events = [Coin, Push, Push, Coin, Coin, Push] in
+let final = run(Locked, events) in
+
+let p3 = print("Final state: " ++ show_state(final)) in
+print("=== Done! ===")
