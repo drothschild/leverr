@@ -271,6 +271,15 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
         const s4 = unify(applySubst(s3, okT), fallbackT, s3);
         return [applySubst(s4, okT), s4];
       }
+      // Special handling: if right side is Try, apply inner fn first then try
+      if (expr.right.kind === "Try") {
+        const [fnT, s2] = inferExpr(expr.right.expr, env, s1);
+        const callRetT = freshTypeVar();
+        const s3 = unify(applySubst(s2, fnT), { kind: "TFn", param: applySubst(s2, leftT), ret: callRetT }, s2);
+        const okT = freshTypeVar();
+        const s4 = unify(applySubst(s3, callRetT), { kind: "TResult", ok: okT }, s3);
+        return [applySubst(s4, okT), s4];
+      }
       const [rightT, s2] = inferExpr(expr.right, env, s1);
       const retT = freshTypeVar();
       const s3 = unify(applySubst(s2, rightT), { kind: "TFn", param: applySubst(s2, leftT), ret: retT }, s2);
