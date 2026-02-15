@@ -22,7 +22,8 @@ let rec eval = fn(expr) ->
         true -> Err("division by zero"),
         false -> Ok(eval(a)? / bv)
       }
-    )
+    ),
+    _ -> Err("unknown expression")
   }
 in
 
@@ -33,7 +34,8 @@ let rec show = fn(expr) ->
     Add(a, b) -> show(a) ++ " + " ++ show(b),
     Mul(a, b) -> "(" ++ show(a) ++ ") * " ++ show(b),
     Neg(a) -> "-(" ++ show(a) ++ ")",
-    Div(a, b) -> show(a) ++ " / " ++ show(b)
+    Div(a, b) -> show(a) ++ " / " ++ show(b),
+    _ -> "unknown"
   }
 in
 
@@ -60,5 +62,9 @@ let p5 = print(format_result(e3)) in
 -- Successful division
 let e4 = Div(Num(10), Num(3)) in
 let p6 = print(format_result(e4)) in
+
+-- Unknown expression
+let e5 = "not an expression" in
+let p7 = print(format_result(e5)) in
 
 print("=== Done! ===")
