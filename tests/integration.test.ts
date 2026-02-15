@@ -107,6 +107,29 @@ describe("End-to-end: Leverr programs", () => {
     expect(logs).toContain("=== Done! ===");
   });
 
+  it("state machine example", () => {
+    const source = readFileSync(join(__dirname, "../examples/state_machine.lv"), "utf-8");
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+
+    const result = runSource(source);
+
+    spy.mockRestore();
+
+    expect(result.error).toBeUndefined();
+    expect(result.output).toBe("()");
+    expect(logs).toContain("=== Turnstile State Machine ===");
+    expect(logs).toContain("Start: Locked");
+    expect(logs).toContain("Coin inserted: unlocked!");
+    expect(logs).toContain("Pushed through: locked!");
+    expect(logs).toContain("Pushed: still locked.");
+    expect(logs).toContain("Extra coin: already unlocked.");
+    expect(logs).toContain("Final state: Locked");
+    expect(logs).toContain("=== Done! ===");
+  });
+
   it("todo app example", () => {
     const source = readFileSync(join(__dirname, "../examples/todo.lv"), "utf-8");
     const logs: string[] = [];
