@@ -103,6 +103,7 @@ describe("End-to-end: Leverr programs", () => {
     expect(logs).toContain("(2 + 3) * -(4) = -20");
     expect(logs).toContain("10 / 0 = Error: division by zero");
     expect(logs).toContain("10 / 3 = 3");
+    expect(logs).toContain("unknown = Error: unknown expression");
     expect(logs).toContain("=== Done! ===");
   });
 
