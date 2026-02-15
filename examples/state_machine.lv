@@ -1,18 +1,15 @@
 -- Turnstile State Machine
 -- A classic finite state machine using tagged values as states/events
--- Showcases nested pattern matching, recursive list processing, and zero-arg tags
+-- Showcases tuple pattern matching, recursive list processing, and zero-arg tags
 
 -- Transition function: given state and event, return Next(new_state, message)
+-- Uses tuple pattern matching to match on (state, event) pairs
 let transition = fn(state, event) ->
-  match state {
-    Locked -> match event {
-      Coin -> Next(Unlocked, "Coin inserted: unlocked!"),
-      Push -> Next(Locked, "Pushed: still locked.")
-    },
-    Unlocked -> match event {
-      Push -> Next(Locked, "Pushed through: locked!"),
-      Coin -> Next(Unlocked, "Extra coin: already unlocked.")
-    }
+  match (state, event) {
+    (Locked, Coin) -> Next(Unlocked, "Coin inserted: unlocked!"),
+    (Locked, Push) -> Next(Locked, "Pushed: still locked."),
+    (Unlocked, Push) -> Next(Locked, "Pushed through: locked!"),
+    (Unlocked, Coin) -> Next(Unlocked, "Extra coin: already unlocked.")
   }
 in
 
