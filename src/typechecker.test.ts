@@ -97,6 +97,34 @@ describe("Type Inference", () => {
     });
   });
 
+  describe("error handling types", () => {
+    it("infers ? unwraps Result", () => {
+      expect(typeOf("let x = Ok(42) in x?")).toBe("Int");
+    });
+
+    it("rejects ? on non-Result", () => {
+      expect(() => typeOf("let x = 42 in x?")).toThrow();
+    });
+
+    it("infers catch collapses Result", () => {
+      expect(typeOf("let x = Ok(42) in x |> catch e -> 0")).toBe("Int");
+    });
+  });
+
+  describe("pattern matching types", () => {
+    it("infers match on booleans", () => {
+      expect(typeOf("match true { true -> 1, false -> 0 }")).toBe("Int");
+    });
+
+    it("rejects inconsistent branch types", () => {
+      expect(() => typeOf('match true { true -> 1, false -> "no" }')).toThrow();
+    });
+
+    it("infers match with tag patterns", () => {
+      expect(typeOf("match Ok(5) { Ok(n) -> n + 1, Err(e) -> 0 }")).toBe("Int");
+    });
+  });
+
   describe("type errors", () => {
     it("rejects Int + String", () => {
       expect(() => typeOf('5 + "hello"')).toThrow();

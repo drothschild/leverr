@@ -241,8 +241,14 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
       // a |> f desugars to f(a) for type checking
       const [leftT, s1] = inferExpr(expr.left, env, subst);
       if (expr.right.kind === "Catch") {
-        // catch doesn't change the type in the success path
-        return [leftT, s1];
+        // catch unwraps Result: if leftT is Result(T), return T unified with fallback
+        const okT = freshTypeVar();
+        const s2 = unify(applySubst(s1, leftT), { kind: "TResult", ok: okT }, s1);
+        const catchEnv = new Map(env);
+        catchEnv.set(expr.right.errorName, mono({ kind: "TCon", name: "String" }));
+        const [fallbackT, s3] = inferExpr(expr.right.fallback, catchEnv, s2);
+        const s4 = unify(applySubst(s3, okT), fallbackT, s3);
+        return [applySubst(s4, okT), s4];
       }
       const [rightT, s2] = inferExpr(expr.right, env, s1);
       const retT = freshTypeVar();
