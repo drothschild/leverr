@@ -31,11 +31,11 @@ if (args[0] === "run" && args[1]) {
     output: process.stdout,
   });
 
-  console.log("Leverr v0.1.0");
+  console.log("Rill v0.1.0");
   console.log('Type :quit to exit, :type <name> for types, :env to see bindings\n');
 
   function prompt() {
-    rl.question("leverr> ", (input) => {
+    rl.question("rill> ", (input) => {
       const trimmed = input.trim();
       if (!trimmed) return prompt();
       if (trimmed === ":quit" || trimmed === ":q") {
@@ -56,6 +56,6 @@ if (args[0] === "run" && args[1]) {
 
   prompt();
 } else {
-  console.error("Usage: leverr [run <file>]");
+  console.error("Usage: rill [run <file>]");
   process.exit(1);
 }

@@ -1,4 +1,4 @@
-# Leverr
+# Rill
 
 A statically-typed scripting language with [Hindley-Milner](https://en.wikipedia.org/wiki/Hindley%E2%80%93Milner_type_system) type inference, pipeline operators, and first-class error handling. Built as a [tree-walking interpreter](https://en.wikipedia.org/wiki/Interpreter_(computing)#Abstract_syntax_tree_interpreters) in TypeScript.
 

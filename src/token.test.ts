@@ -12,7 +12,7 @@ describe("Token", () => {
     expect(token.lexeme).toBe("42");
   });
 
-  it("has all required token kinds for Leverr", () => {
+  it("has all required token kinds for Rill", () => {
     // Literals
     expect(TokenKind.Int).toBeDefined();
     expect(TokenKind.Float).toBeDefined();

@@ -5,7 +5,7 @@ import { infer } from "./typechecker";
 import { prettyPrint } from "./values";
 import { resetTypeVarCounter } from "./types";
 import { createPrelude } from "./prelude";
-import { LeverrError } from "./errors";
+import { RillError } from "./errors";
 
 interface RunResult {
   output?: string;
@@ -17,13 +17,13 @@ export function runSource(source: string): RunResult {
     const tokens = lex(source);
     const ast = parse(tokens);
 
-    // Type check — only block on LeverrError (formatted type errors with source info)
+    // Type check — only block on RillError (formatted type errors with source info)
     // Skip TypeError from inference limitations (missing prelude types, no sum types)
     resetTypeVarCounter();
     try {
       infer(ast, undefined, source);
     } catch (e: any) {
-      if (e instanceof LeverrError) {
+      if (e instanceof RillError) {
         return { error: e.message };
       }
     }
