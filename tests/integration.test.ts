@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { runSource } from "../src/runner";
 
 describe("End-to-end: Leverr programs", () => {
@@ -81,5 +83,28 @@ describe("End-to-end: Leverr programs", () => {
       in first + 10
     `);
     expect(result.output).toBe("11");
+  });
+
+  it("todo app example", () => {
+    const source = readFileSync(join(__dirname, "../examples/todo.lv"), "utf-8");
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+
+    const result = runSource(source);
+
+    spy.mockRestore();
+
+    expect(result.error).toBeUndefined();
+    expect(result.output).toBe("()");
+    expect(logs).toContain("=== Leverr Todo App ===");
+    expect(logs).toContain("[x] Learn Leverr");
+    expect(logs).toContain("[ ] Write a demo");
+    expect(logs).toContain("Pending items:");
+    expect(logs).toContain("  [ ] Write a demo");
+    expect(logs).toContain("After completing 'Write a demo':");
+    expect(logs).toContain("[x] Write a demo");
+    expect(logs).toContain("=== Done! ===");
   });
 });
