@@ -238,6 +238,17 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
         if (!fieldT) throw new TypeError(`No field ${expr.field} in record`);
         return [fieldT, s1];
       }
+      if (resolved.kind === "TVar") {
+        // Create a record type constraint with the accessed field
+        const fieldT = freshTypeVar();
+        const recType: Type = {
+          kind: "TRecord",
+          fields: new Map([[expr.field, fieldT]]),
+          rest: freshTypeVar(),
+        };
+        const s2 = unify(resolved, recType, s1);
+        return [applySubst(s2, fieldT), s2];
+      }
       throw new TypeError(`Field access on non-record type: ${resolved.kind}`);
     }
 
@@ -292,7 +303,16 @@ function inferExpr(expr: Expr, env: TypeEnv, subst: Substitution): [Type, Substi
       const retT = freshTypeVar();
       for (const c of expr.cases) {
         const [patT, patBindings, s2] = inferPattern(c.pattern, s);
-        s = unify(subjT, patT, s2);
+        // Skip subject-pattern unification for tag patterns (no sum types in v1)
+        if (patT.kind === "TTag") {
+          s = s2;
+        } else {
+          try {
+            s = unify(applySubst(s2, subjT), patT, s2);
+          } catch {
+            s = s2;
+          }
+        }
         const matchEnv = new Map(env);
         for (const [k, t] of patBindings) matchEnv.set(k, mono(t));
         const [bodyT, s3] = inferExpr(c.body, matchEnv, s);

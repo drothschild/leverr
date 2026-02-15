@@ -5,6 +5,7 @@ import { infer } from "./typechecker";
 import { prettyPrint } from "./values";
 import { resetTypeVarCounter } from "./types";
 import { createPrelude } from "./prelude";
+import { LeverrError } from "./errors";
 
 interface RunResult {
   output?: string;
@@ -16,14 +17,14 @@ export function runSource(source: string): RunResult {
     const tokens = lex(source);
     const ast = parse(tokens);
 
-    // Type check — block on real type errors, skip undefined variable errors (prelude)
+    // Type check — only block on LeverrError (formatted type errors with source info)
+    // Skip TypeError from inference limitations (missing prelude types, no sum types)
     resetTypeVarCounter();
     try {
       infer(ast, undefined, source);
     } catch (e: any) {
-      const msg = e.message || "";
-      if (!msg.includes("Undefined variable")) {
-        return { error: msg };
+      if (e instanceof LeverrError) {
+        return { error: e.message };
       }
     }
 
