@@ -151,6 +151,33 @@ describe("End-to-end: Rill programs", () => {
     expect(result.output).toBe('"locked"');
   });
 
+  it("markdown renderer example", () => {
+    const source = readFileSync(join(__dirname, "../examples/markdown.lv"), "utf-8");
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+
+    const result = runSource(source);
+
+    spy.mockRestore();
+
+    expect(result.error).toBeUndefined();
+    expect(result.output).toBe("()");
+    expect(logs).toContain("=== Markdown Renderer ===");
+    expect(logs).toContain("# My Document");
+    expect(logs).toContain("A quick demo with **bold** and *italic* text.");
+    expect(logs).toContain("## Features");
+    expect(logs).toContain("- Tagged values as AST");
+    expect(logs).toContain("- Recursive rendering");
+    expect(logs).toContain("- Pattern matching");
+    expect(logs).toContain("## Steps");
+    expect(logs).toContain("1. Parse");
+    expect(logs).toContain("2. Render");
+    expect(logs).toContain("3. Print");
+    expect(logs).toContain("=== Done! ===");
+  });
+
   it("todo app example", () => {
     const source = readFileSync(join(__dirname, "../examples/todo.lv"), "utf-8");
     const logs: string[] = [];
