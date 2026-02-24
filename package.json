@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/lib.js",
+    "./cli": "./dist/index.js"
+  },
   "bin": {
     "rill": "./dist/index.js"
   },
